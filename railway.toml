@@ -1,0 +1,18 @@
+[build]
+  builder = "NIXPACKS"
+
+[[build.vars]]
+  key = "NIXPACKS_BUILD_CMD"
+  value = "npm ci && npx puppeteer browsers install chrome && composer install --no-dev --optimize-autoloader && php artisan config:cache"
+
+[[services]]
+  internal_port = 80
+  primary_region = "us-east1"
+
+  [[services.ports]]
+    port = 80
+    handler = "plainhttp"
+
+  [services.vars]
+    APP_ENV = "production"
+    NIXPACKS_PHP_VERSION = "8.2"
