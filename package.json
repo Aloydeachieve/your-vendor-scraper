@@ -11,7 +11,7 @@
     "build": "echo 'No frontend build needed'"
   },
   "dependencies": {
-    "puppeteer": "^23.0.0"
+    "puppeteer": "^23.5.3"
   },
   "devDependencies": {
     "axios": "^1.6.1",
