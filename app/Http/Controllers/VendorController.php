@@ -12,11 +12,24 @@ class VendorController extends Controller
         $query = $request->query('url') ?? 'phones/lagos';
         $pages = $request->query('pages') ?? 1;
 
-        $process = new Process(['node', base_path('app/scraper.js'), "https://jiji.ng/{$query}", $pages]);
+        $url = str_starts_with($query, 'http') ? $query : "https://jiji.ng/" . ltrim($query, '/');
+
+        $process = new Process(['node', base_path('app/scraper.js'), $url, $pages]);
+        $process->setTimeout(180); // 3 minutes timeout for scraping
         $process->start();
         $process->wait();
 
-        $vendors = json_decode($process->getOutput(), true) ?: [];
+        $output = $process->getOutput();
+        $vendors = json_decode($output, true);
+
+        if ($vendors === null) {
+            return response()->json([
+                'error' => 'Scraper failed to return valid JSON',
+                'details' => $process->getErrorOutput(),
+                'count' => 0,
+                'data' => []
+            ], 500);
+        }
 
         return response()->json([
             'count' => count($vendors),
