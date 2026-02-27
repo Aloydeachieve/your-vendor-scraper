@@ -39,11 +39,20 @@ class VendorController extends Controller
 
         $process = new Process(['node', base_path($config['script']), $url, $pages]);
         $process->setTimeout(180); // 3 minutes timeout for scraping
-        $process->start();
-        $process->wait();
+        // Run the process
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            return response()->json([
+                'error' => 'Scraper crashed',
+                'details' => $process->getErrorOutput()
+            ], 500);
+        }
 
         $output = $process->getOutput();
-        $vendors = json_decode($output, true);
+        // Clean any potential Node warnings from the output string
+        $cleanOutput = substr($output, strpos($output, '['));
+        $vendors = json_decode($cleanOutput, true);
 
         if ($vendors === null) {
             return response()->json([
