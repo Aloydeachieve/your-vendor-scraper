@@ -9,16 +9,35 @@ class VendorController extends Controller
 {
     public function scrape(Request $request)
     {
-        $queryUrl = $request->query('url') ?? 'phones/lagos';
+        $queryUrl = $request->query('url');
         if (!$queryUrl) {
             return response()->json(["error" => "missing url parameter"], 400);
         }
 
         $pages = $request->query('pages') ?? 1;
+        $platform = $request->query('platform') ?? 'jiji'; // Defaults to Jiji
 
-        $url = str_starts_with($queryUrl, 'http') ? $queryUrl : "https://jiji.ng/" . ltrim($queryUrl, '/');
+        // Map platforms to scripts and base URLs
+        $scraperConfig = [
+            'jiji' => [
+                'script' => 'app/scraper.js',
+                'base_url' => 'https://jiji.ng/'
+            ],
+            'konga' => [
+                'script' => 'app/konga_scraper.js',
+                'base_url' => 'https://www.konga.com/category/'
+            ]
+        ];
 
-        $process = new Process(['node', base_path('app/scraper.js'), $url, $pages]);
+        if (!array_key_exists($platform, $scraperConfig)) {
+            return response()->json(["error" => "unsupported platform. Supported: jiji, konga"], 400);
+        }
+
+        $config = $scraperConfig[$platform];
+
+        $url = str_starts_with($queryUrl, 'http') ? $queryUrl : $config['base_url'] . ltrim($queryUrl, '/');
+
+        $process = new Process(['node', base_path($config['script']), $url, $pages]);
         $process->setTimeout(180); // 3 minutes timeout for scraping
         $process->start();
         $process->wait();
