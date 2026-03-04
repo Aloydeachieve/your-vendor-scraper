@@ -26,7 +26,23 @@ class VendorController extends Controller
             'konga' => [
                 'script' => 'app/konga_scraper.js',
                 'base_url' => 'https://www.konga.com/category/'
-            ]
+            ],
+            'jumia' => [
+                'script' => 'app/jumia_scraper.js',
+                'base_url' => 'https://www.jumia.com.ng/'
+            ],
+            'ebay' => [
+                'script' => 'app/ebay_scraper.js',
+                'base_url' => 'https://www.ebay.com/sch/i.html?_nkw='
+            ],
+            'amazon' => [
+                'script' => 'app/amazon_scraper.js',
+                'base_url' => 'https://www.amazon.com/s?k='
+            ],
+            'olxGumtree' => [
+                'script' => 'app/olxGumtree_scraper.js',
+                'base_url' => 'https://www.olx.co.za/property-for-sale'
+            ],
         ];
 
         if (!array_key_exists($platform, $scraperConfig)) {
