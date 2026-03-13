@@ -23,21 +23,86 @@ puppeteer.use(StealthPlugin());
         await page.goto("https://jiji.ng", { waitUntil: "networkidle2" });
 
         // open login modal
-        await page
-            .click('a[href*="login"], a[data-testid="login-button"]')
-            .catch(() => {});
+        const loginBtn = await page.$(
+            'a[href*="login"], a[data-testid="login-button"], [class*="login"], [class*="sign-in"], div:has-text("Sign in")',
+        );
+        if (loginBtn) {
+            await loginBtn.click().catch(() => {});
+            await page.waitForTimeout(2000); // let modal open
+        }
 
-        await page.waitForSelector('input[type="email"]', { timeout: 10000 });
+        if (process.env.JIJI_EMAIL && process.env.JIJI_PASSWORD) {
+            // Emulate typing in the modal inputs using React value setters
+            await page.evaluate(
+                (email, password) => {
+                    const pwInputs = Array.from(
+                        document.querySelectorAll('input[type="password"]'),
+                    );
+                    if (!pwInputs.length) return;
+                    const pwInput = pwInputs[pwInputs.length - 1]; // Usually the actual password field
+                    const form =
+                        pwInput.closest("form") ||
+                        pwInput.parentElement.parentElement.parentElement;
 
-        await page.type('input[type="email"]', process.env.JIJI_EMAIL);
-        await page.type('input[type="password"]', process.env.JIJI_PASSWORD);
+                    // Find email/phone input
+                    const textInputs = Array.from(
+                        form.querySelectorAll(
+                            'input:not([type="password"]):not([type="hidden"])',
+                        ),
+                    );
+                    const emailInput = textInputs.find(
+                        (i) =>
+                            i.type === "email" ||
+                            (i.placeholder &&
+                                i.placeholder
+                                    .toLowerCase()
+                                    .includes("email")) ||
+                            (i.name &&
+                                i.name.toLowerCase().includes("email")) ||
+                            (i.name &&
+                                i.name.toLowerCase().includes("user_id")) ||
+                            i.type === "text" ||
+                            i.type === "tel",
+                    );
 
-        await Promise.all([
-            page.keyboard.press("Enter"),
-            page
-                .waitForNavigation({ waitUntil: "networkidle2" })
-                .catch(() => {}),
-        ]);        
+                    if (emailInput && pwInput) {
+                        // React 16+ friendly value setter
+                        const nativeInputValueSetter =
+                            Object.getOwnPropertyDescriptor(
+                                window.HTMLInputElement.prototype,
+                                "value",
+                            ).set;
+
+                        nativeInputValueSetter.call(emailInput, email);
+                        emailInput.dispatchEvent(
+                            new Event("input", { bubbles: true }),
+                        );
+                        emailInput.dispatchEvent(
+                            new Event("change", { bubbles: true }),
+                        );
+
+                        nativeInputValueSetter.call(pwInput, password);
+                        pwInput.dispatchEvent(
+                            new Event("input", { bubbles: true }),
+                        );
+                        pwInput.dispatchEvent(
+                            new Event("change", { bubbles: true }),
+                        );
+
+                        const submitBtn = form.querySelector(
+                            'button[type="submit"], button',
+                        );
+                        if (submitBtn) {
+                            submitBtn.click();
+                        }
+                    }
+                },
+                process.env.JIJI_EMAIL,
+                process.env.JIJI_PASSWORD,
+            );
+
+            await page.waitForTimeout(3000); // Wait for login to process
+        }
 
         console.log("Logged in successfully");
     } catch (loginErr) {
@@ -84,23 +149,27 @@ puppeteer.use(StealthPlugin());
     }
 
     try {
-        // If the URL provided is already a product detail page
-        if (searchUrl.includes(".html") && !searchUrl.includes("?page=")) {
-            await page.goto(searchUrl, {
-                waitUntil: "domcontentloaded",
+        // First go to the URL
+        await page
+            .goto(searchUrl, {
+                waitUntil: "networkidle2",
                 timeout: 60000,
-            });
-            await page.waitForTimeout(2000);
+            })
+            .catch(() => console.error("Navigation failed to URL:", searchUrl));
+        await page.waitForTimeout(2000);
+
+        // Determine if it is a single product page or a category page dynamically
+        const isProductPage = await page.evaluate(() => {
+            return !!document.querySelector(
+                '.b-seller-info, .qa-show-contact, button:has-text("Show contact"), .b-advert-title-inner',
+            );
+        });
+
+        if (isProductPage) {
             const data = await extractJijiDetail(searchUrl, page);
             vendors.push(data);
         } else {
             // It is a category listing page
-            await page.goto(searchUrl, {
-                waitUntil: "networkidle2",
-                timeout: 60000,
-            });
-            await page.waitForTimeout(2000);
-
             const productLinks = await page.$$eval(
                 '.b-list-advert__item-wrapper, .b-list-advert__item, .b-list-advert-base, .b-adapter__item, a[href*=".html"]',
                 (els) =>
