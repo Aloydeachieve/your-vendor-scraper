@@ -46,7 +46,7 @@ class VendorController extends Controller
         ];
 
         if (!array_key_exists($platform, $scraperConfig)) {
-            return response()->json(["error" => "unsupported platform. Supported: jiji, konga"], 400);
+            return response()->json(["error" => "unsupported platform. Supported: jiji, konga, jumia, ebay, amazon, olxGumtree"], 400);
         }
 
         $config = $scraperConfig[$platform];

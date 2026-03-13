@@ -1,0 +1,7 @@
+name: scrape_vendor
+description: scrape vendors from marketplaces
+inputs:
+  platform:
+    type: string
+  url:
+    type: string

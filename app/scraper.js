@@ -20,31 +20,26 @@ puppeteer.use(StealthPlugin());
 
     // ——— LOGIN ———
     try {
-        await page.goto("https://jiji.ng/login", {
-            waitUntil: "domcontentloaded",
-        });
-        await page.waitForTimeout(2000);
+        await page.goto("https://jiji.ng", { waitUntil: "networkidle2" });
 
-        if (process.env.JIJI_EMAIL && process.env.JIJI_PASSWORD) {
-            await page.type(
-                'input[name="email"], input[type="email"]',
-                process.env.JIJI_EMAIL,
-            );
-            await page.type(
-                'input[name="password"], input[type="password"]',
-                process.env.JIJI_PASSWORD,
-            );
+        // open login modal
+        await page
+            .click('a[href*="login"], a[data-testid="login-button"]')
+            .catch(() => {});
 
-            await Promise.all([
-                page.click('button[type="submit"]'),
-                page.waitForNavigation({ waitUntil: "networkidle2" }),
-            ]).catch(() =>
-                console.log(
-                    "Navigation timeout on login, continuing anyway...",
-                ),
-            );
-            console.log("Login sequence completed.");
-        }
+        await page.waitForSelector('input[type="email"]', { timeout: 10000 });
+
+        await page.type('input[type="email"]', process.env.JIJI_EMAIL);
+        await page.type('input[type="password"]', process.env.JIJI_PASSWORD);
+
+        await Promise.all([
+            page.keyboard.press("Enter"),
+            page
+                .waitForNavigation({ waitUntil: "networkidle2" })
+                .catch(() => {}),
+        ]);        
+
+        console.log("Logged in successfully");
     } catch (loginErr) {
         console.error("Login sequence failed (ignoring):", loginErr.message);
     }
