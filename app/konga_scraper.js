@@ -72,7 +72,7 @@ import fs from "fs";
                     waitUntil: "domcontentloaded",
                     timeout: 60000,
                 });
-                await page.waitForTimeout(2000);
+                await new Promise((r) => setTimeout(r, 2000));
 
                 const productLinks = await page.$$eval(
                     ".item > a, a.core",

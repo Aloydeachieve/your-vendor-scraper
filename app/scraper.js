@@ -24,11 +24,11 @@ puppeteer.use(StealthPlugin());
 
         // open login modal
         const loginBtn = await page.$(
-            'a[href*="login"], a[data-testid="login-button"], [class*="login"], [class*="sign-in"], div:has-text("Sign in")',
+            'a[href*="login"], a[data-testid="login-button"], [class*="login"], [class*="sign-in"]',
         );
         if (loginBtn) {
             await loginBtn.click().catch(() => {});
-            await page.waitForTimeout(2000); // let modal open
+            await new Promise((r) => setTimeout(r, 2000)); // let modal open
         }
 
         if (process.env.JIJI_EMAIL && process.env.JIJI_PASSWORD) {
@@ -101,7 +101,7 @@ puppeteer.use(StealthPlugin());
                 process.env.JIJI_PASSWORD,
             );
 
-            await page.waitForTimeout(3000); // Wait for login to process
+            await new Promise((r) => setTimeout(r, 3000)); // Wait for login to process
         }
 
         console.log("Logged in successfully");
@@ -114,11 +114,11 @@ puppeteer.use(StealthPlugin());
     async function extractJijiDetail(detailUrl, pageInstance) {
         try {
             const showBtn = await pageInstance.$(
-                'button.qa-show-contact, .b-seller-info__action-button, button:has-text("Show contact")',
+                "button.qa-show-contact, .b-seller-info__action-button",
             );
             if (showBtn) {
                 await showBtn.click();
-                await pageInstance.waitForTimeout(2000);
+                await new Promise((r) => setTimeout(r, 2000));
             }
         } catch (e) {}
 
@@ -156,12 +156,12 @@ puppeteer.use(StealthPlugin());
                 timeout: 60000,
             })
             .catch(() => console.error("Navigation failed to URL:", searchUrl));
-        await page.waitForTimeout(2000);
+        await new Promise((r) => setTimeout(r, 2000));
 
         // Determine if it is a single product page or a category page dynamically
         const isProductPage = await page.evaluate(() => {
             return !!document.querySelector(
-                '.b-seller-info, .qa-show-contact, button:has-text("Show contact"), .b-advert-title-inner',
+                ".b-seller-info, .qa-show-contact, .b-advert-title-inner",
             );
         });
 
