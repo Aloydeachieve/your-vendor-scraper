@@ -6,6 +6,10 @@ puppeteer.use(StealthPlugin());
 
 (async () => {
     const [, , searchUrl, maxPages] = process.argv;
+    if (!searchUrl) {
+        console.error("Usage: node scraper.js <searchUrl> [maxPages]");
+        process.exit(1);
+    }
 
     const browser = await puppeteer.launch({
         headless: "new",
@@ -20,7 +24,12 @@ puppeteer.use(StealthPlugin());
 
     // ——— LOGIN ———
     try {
-        await page.goto("https://jiji.ng", { waitUntil: "networkidle2" });
+        await page
+            .goto("https://jiji.ng", {
+                waitUntil: "domcontentloaded",
+                timeout: 45000,
+            })
+            .catch(() => {});
 
         // open login modal
         const loginBtn = await page.$(
@@ -152,17 +161,15 @@ puppeteer.use(StealthPlugin());
         // First go to the URL
         await page
             .goto(searchUrl, {
-                waitUntil: "networkidle2",
-                timeout: 60000,
+                waitUntil: "domcontentloaded",
+                timeout: 45000,
             })
             .catch(() => console.error("Navigation failed to URL:", searchUrl));
         await new Promise((r) => setTimeout(r, 2000));
 
         // Determine if it is a single product page or a category page dynamically
         const isProductPage = await page.evaluate(() => {
-            return !!document.querySelector(
-                ".b-seller-info, .qa-show-contact, .b-advert-title-inner",
-            );
+            return !!document.querySelector(".b-seller-info, .qa-show-contact");
         });
 
         if (isProductPage) {

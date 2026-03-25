@@ -3,6 +3,10 @@ import fs from "fs";
 
 (async () => {
     const [, , searchUrl, maxPages] = process.argv;
+    if (!searchUrl) {
+        console.error("Usage: node jumia_scraper.js <searchUrl> [maxPages]");
+        process.exit(1);
+    }
     const browser = await puppeteer.launch({
         headless: true,
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
