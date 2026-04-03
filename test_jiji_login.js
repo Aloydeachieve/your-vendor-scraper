@@ -1,5 +1,6 @@
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import fs from "fs";
 puppeteer.use(StealthPlugin());
 
 (async () => {
@@ -12,11 +13,20 @@ puppeteer.use(StealthPlugin());
     await page.goto("https://jiji.ng", { waitUntil: "networkidle2" });
 
     console.log("Clicking sign in...");
-    await page
-        .click('a[href*="login"], a[data-testid="login-button"]')
-        .catch(() => console.error("Could not click sign in"));
+    const clickedSignIn = await page
+        .click('a[href*="login"], a[data-testid="login-button"], [class*="login"], [class*="sign-in"]')
+        .then(() => true)
+        .catch(() => {
+            console.error("Could not click sign in");
+            return false;
+        });
 
-    await page.waitForTimeout(2000); // let modal open
+    if (!clickedSignIn) {
+        await browser.close();
+        process.exit(1);
+    }
+
+    await page.waitForTimeout(5000); // let modal open
 
     const html = await page.evaluate(() => {
         const modal = document.querySelector(
@@ -26,7 +36,7 @@ puppeteer.use(StealthPlugin());
     });
 
     // Save to a file to examine
-    import("fs").then((fs) => fs.writeFileSync("jiji_modal.html", html));
+    fs.writeFileSync("jiji_modal.html", html);
     console.log("Saved jiji_modal.html");
 
     await browser.close();

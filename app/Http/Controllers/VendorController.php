@@ -54,8 +54,12 @@ class VendorController extends Controller
         $url = str_starts_with($queryUrl, 'http') ? $queryUrl : $config['base_url'] . ltrim($queryUrl, '/');
 
         $process = new Process(['node', base_path($config['script']), $url, $pages]);
-        $process->setTimeout(180); // 3 minutes timeout for scraping
-        // Run the process
+        $process->setTimeout(180);
+        // Pass Jiji credentials from Laravel .env to the Node subprocess as environment variables
+        $process->setEnv([
+            'JIJI_EMAIL'    => trim(env('JIJI_EMAIL', '')),
+            'JIJI_PASSWORD' => env('JIJI_PASSWORD', ''),
+        ]);
         $process->run();
 
         if (!$process->isSuccessful()) {
@@ -66,16 +70,27 @@ class VendorController extends Controller
         }
 
         $output = $process->getOutput();
-        // Clean any potential Node warnings from the output string
-        $cleanOutput = substr($output, strpos($output, '['));
+        // Find the first [ to strip any Node.js log lines before the JSON array
+        $jsonStart = strpos($output, '[');
+        if ($jsonStart === false) {
+            return response()->json([
+                'error'   => 'Scraper returned no JSON',
+                'details' => $process->getErrorOutput(),
+                'stdout'  => $output,
+                'count'   => 0,
+                'data'    => []
+            ], 500);
+        }
+        $cleanOutput = substr($output, $jsonStart);
         $vendors = json_decode($cleanOutput, true);
 
         if ($vendors === null) {
             return response()->json([
-                'error' => 'Scraper failed to return valid JSON',
+                'error'   => 'Scraper failed to return valid JSON',
                 'details' => $process->getErrorOutput(),
-                'count' => 0,
-                'data' => []
+                'stdout'  => substr($output, 0, 500),
+                'count'   => 0,
+                'data'    => []
             ], 500);
         }
 
