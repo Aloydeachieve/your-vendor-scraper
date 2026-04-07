@@ -4,7 +4,7 @@
 /public/hot
 /public/storage
 /storage/*.key
-/storage/app/jiji_cookies.json
+/storage/app/jiji_cookies*.json
 /vendor
 .env
 .env.backup
