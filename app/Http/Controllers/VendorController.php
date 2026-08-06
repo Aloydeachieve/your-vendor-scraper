@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Vendor;
 use Illuminate\Http\Request;
 use Symfony\Component\Process\Process;
 
@@ -94,8 +95,21 @@ class VendorController extends Controller
             ], 500);
         }
 
+        foreach ($vendors as $v) {
+            Vendor::updateOrCreate(
+                ['phone' => $v['phone']],
+                [
+                    'name'     => $v['name'],
+                    'whatsapp' => $v['whatsapp'],
+                    'products' => $v['products'], // This will be cast to JSON
+                    'status'   => 'pending',
+                ]
+            );
+        }
+
         return response()->json([
             'count' => count($vendors),
+            'message' => 'Leads saved to database successfully',
             'data' => $vendors
         ]);
     }

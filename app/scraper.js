@@ -9,6 +9,8 @@ puppeteer.use(StealthPlugin());
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Random sleep between min and max ms — more human-like than fixed delays
+// Redirect log to stderr to keep stdout clean for JSON output
+const log = (...args) => console.error(...args);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const randomSleep = (min, max) =>
     sleep(Math.floor(Math.random() * (max - min + 1)) + min);
@@ -56,7 +58,7 @@ function loadAccounts() {
         try {
             const accounts = JSON.parse(process.env.JIJI_ACCOUNTS);
             if (Array.isArray(accounts) && accounts.length > 0) {
-                console.log(
+                log(
                     `[ACCOUNTS] Loaded ${accounts.length} account(s) for rotation.`,
                 );
                 return accounts;
@@ -100,7 +102,7 @@ function saveCookies(cookies, accountIndex) {
         const dir = path.dirname(filePath);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(filePath, JSON.stringify(cookies, null, 2));
-        console.log(
+        log(
             `[COOKIES][acc${accountIndex}] Saved ${cookies.length} cookies.`,
         );
     } catch (e) {
@@ -114,7 +116,7 @@ async function loadAndApplyCookies(page, accountIndex) {
         if (!fs.existsSync(filePath)) return false;
         const cookies = JSON.parse(fs.readFileSync(filePath, "utf-8"));
         await page.setCookie(...cookies);
-        console.log(
+        log(
             `[COOKIES][acc${accountIndex}] Loaded ${cookies.length} cookies.`,
         );
         return true;
@@ -145,12 +147,12 @@ async function isLoggedIn(page) {
 async function loginToJiji(page, account, accountIndex) {
     const { email, password } = account;
     if (!email || !password) {
-        console.log(`[LOGIN][acc${accountIndex}] No credentials, skipping.`);
+        log(`[LOGIN][acc${accountIndex}] No credentials, skipping.`);
         return false;
     }
 
     try {
-        console.log(`[LOGIN][acc${accountIndex}] Navigating to jiji.ng...`);
+        log(`[LOGIN][acc${accountIndex}] Navigating to jiji.ng...`);
         await page
             .goto("https://jiji.ng", {
                 waitUntil: "domcontentloaded",
@@ -164,7 +166,7 @@ async function loginToJiji(page, account, accountIndex) {
         try {
             await page.click('a[href="/?auth=Login"]');
             signInClicked = true;
-            console.log(`[LOGIN][acc${accountIndex}] Clicked Sign in.`);
+            log(`[LOGIN][acc${accountIndex}] Clicked Sign in.`);
         } catch (e) {
             const links = await page.$$("a");
             for (const el of links) {
@@ -174,7 +176,7 @@ async function loginToJiji(page, account, accountIndex) {
                 if (text === "sign in") {
                     await el.click();
                     signInClicked = true;
-                    console.log(
+                    log(
                         `[LOGIN][acc${accountIndex}] Clicked Sign in (by text).`,
                     );
                     break;
@@ -183,7 +185,7 @@ async function loginToJiji(page, account, accountIndex) {
         }
 
         if (!signInClicked) {
-            console.log(`[LOGIN][acc${accountIndex}] Sign in link not found.`);
+            log(`[LOGIN][acc${accountIndex}] Sign in link not found.`);
             return false;
         }
 
@@ -209,7 +211,7 @@ async function loginToJiji(page, account, accountIndex) {
             if (text.includes("e-mail") || text.includes("email or phone")) {
                 await btn.click();
                 emailBtnClicked = true;
-                console.log(
+                log(
                     `[LOGIN][acc${accountIndex}] Clicked E-mail button.`,
                 );
                 break;
@@ -217,21 +219,21 @@ async function loginToJiji(page, account, accountIndex) {
         }
 
         if (!emailBtnClicked) {
-            console.log(`[LOGIN][acc${accountIndex}] E-mail button not found.`);
+            log(`[LOGIN][acc${accountIndex}] E-mail button not found.`);
             return false;
         }
 
         // Wait for login form
-        console.log(`[LOGIN][acc${accountIndex}] Waiting for form...`);
+        log(`[LOGIN][acc${accountIndex}] Waiting for form...`);
         const pwInput = await page
             .waitForSelector('input[type="password"]', { timeout: 12000 })
             .catch(() => null);
 
         if (!pwInput) {
-            console.log(`[LOGIN][acc${accountIndex}] Form didn't appear.`);
+            log(`[LOGIN][acc${accountIndex}] Form didn't appear.`);
             return false;
         }
-        console.log(`[LOGIN][acc${accountIndex}] Form appeared. Filling...`);
+        log(`[LOGIN][acc${accountIndex}] Form appeared. Filling...`);
 
         // Fill email (skip placeholder=search bar)
         const allInputs = await page.$$("input");
@@ -273,7 +275,7 @@ async function loginToJiji(page, account, accountIndex) {
                 text === "SIGN IN"
             ) {
                 await btn.click();
-                console.log(`[LOGIN][acc${accountIndex}] Clicked SIGN IN.`);
+                log(`[LOGIN][acc${accountIndex}] Clicked SIGN IN.`);
                 break;
             }
         }
@@ -285,11 +287,11 @@ async function loginToJiji(page, account, accountIndex) {
         );
 
         if (loggedIn) {
-            console.log(`[LOGIN][acc${accountIndex}] Logged in successfully!`);
+            log(`[LOGIN][acc${accountIndex}] Logged in successfully!`);
             const cookies = await page.cookies();
             saveCookies(cookies, accountIndex);
         } else {
-            console.log(
+            log(
                 `[LOGIN][acc${accountIndex}] Login failed (wrong credentials?).`,
             );
         }
@@ -326,21 +328,28 @@ async function setupAccountSession(account, accountIndex) {
     );
 
     if (hasCookies) {
-        console.log(`[SESSION][acc${accountIndex}] Loading saved cookies...`);
+        log(`[SESSION][acc${accountIndex}] Loading saved cookies...`);
         await loadAndApplyCookies(page, accountIndex);
         const valid = await isLoggedIn(page);
         if (valid) {
-            console.log(
+            log(
                 `[SESSION][acc${accountIndex}] Cookies valid — login skipped!`,
             );
             return { browser, page };
         }
-        console.log(
+        log(
             `[SESSION][acc${accountIndex}] Cookies expired, doing fresh login...`,
         );
     }
 
-    await loginToJiji(page, account, accountIndex);
+    const loggedIn = await loginToJiji(page, account, accountIndex);
+    if (!loggedIn) {
+        console.error(
+            `[SESSION][acc${accountIndex}] Login failed. Cannot proceed.`,
+        );
+        await browser.close();
+        throw new Error(`Login failed for account ${accountIndex}`);
+    }
     return { browser, page };
 }
 
@@ -354,7 +363,7 @@ async function extractJijiDetail(detailUrl, browser) {
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         );
 
-        console.log("[SCRAPE] Visiting:", detailUrl);
+        log("[SCRAPE] Visiting:", detailUrl);
         await productPage.goto(detailUrl, {
             waitUntil: "domcontentloaded",
             timeout: 45000,
@@ -480,7 +489,7 @@ async function extractJijiDetail(detailUrl, browser) {
             };
         });
 
-        console.log(
+        log(
             `[SCRAPE] "${data.title}" | phones: [${phones.join(", ")}] | wa: ${data.whatsapp}`,
         );
 
@@ -528,11 +537,11 @@ async function extractJijiDetail(detailUrl, browser) {
         process.exit(1);
     }
 
-    console.log(
+    log(
         `[MAIN] Scraping up to ${limit} products. Rotating every ${ROTATE_EVERY} products across ${accounts.length} account(s).`,
     );
 
-    const vendors = [];
+    const vendors = new Map(); // Key: Phone, Value: Vendor Object
     let currentAccountIndex = 0;
     let currentBrowser = null;
     let currentPage = null;
@@ -546,7 +555,7 @@ async function extractJijiDetail(detailUrl, browser) {
     currentPage = firstSession.page;
 
     try {
-        console.log("[NAV] Going to:", searchUrl);
+        log("[NAV] Going to:", searchUrl);
         await currentPage
             .goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 45000 })
             .catch(() => console.error("[NAV] Navigation failed:", searchUrl));
@@ -563,11 +572,25 @@ async function extractJijiDetail(detailUrl, browser) {
         });
 
         if (isProductPage) {
-            console.log("[NAV] Single product page detected.");
+            log("[NAV] Single product page detected.");
             const data = await extractJijiDetail(searchUrl, currentBrowser);
-            vendors.push(data);
+            if (data.phone) {
+                vendors.set(data.phone, {
+                    name: data.seller_name,
+                    phone: data.phone,
+                    whatsapp: data.whatsapp,
+                    all_phones: data.all_phones,
+                    products: [
+                        {
+                            title: data.title,
+                            price: data.price,
+                            url: data.profile_url,
+                        },
+                    ],
+                });
+            }
         } else {
-            console.log("[NAV] Category page. Collecting product links...");
+            log("[NAV] Category page. Collecting product links...");
 
             const productLinks = await currentPage.evaluate(() => {
                 const seen = new Set();
@@ -591,27 +614,54 @@ async function extractJijiDetail(detailUrl, browser) {
                 return links;
             });
 
-            const uniqueLinks = productLinks.slice(0, limit);
-            console.log(`[NAV] Found ${uniqueLinks.length} product links.`);
+            const uniqueLinks = productLinks; // We'll scrape until we hit the 'limit' of unique vendors
+            log(
+                `[NAV] Found ${uniqueLinks.length} potential product links.`,
+            );
 
             for (let i = 0; i < uniqueLinks.length; i++) {
+                // Stop if we have reached the limit of UNIQUE VENDORS
+                if (vendors.size >= limit) {
+                    log(
+                        `[MAIN] Reached limit of ${limit} unique vendors. Stopping.`,
+                    );
+                    break;
+                }
+
                 // ——— ACCOUNT ROTATION ———
                 // Switch account every ROTATE_EVERY products (but not on very first one)
                 if (i > 0 && i % ROTATE_EVERY === 0 && accounts.length > 1) {
                     const nextIndex =
                         (currentAccountIndex + 1) % accounts.length;
-                    console.log(
+                    log(
                         `\n[ROTATE] ${ROTATE_EVERY} products done with acc${currentAccountIndex}. Switching to acc${nextIndex}...`,
                     );
-                    await currentBrowser.close();
-                    const nextSession = await setupAccountSession(
-                        accounts[nextIndex],
-                        nextIndex,
-                    );
-                    currentBrowser = nextSession.browser;
-                    currentPage = nextSession.page;
-                    currentAccountIndex = nextIndex;
-                    console.log(
+                    try {
+                        await currentBrowser.close();
+                        const nextSession = await setupAccountSession(
+                            accounts[nextIndex],
+                            nextIndex,
+                        );
+                        currentBrowser = nextSession.browser;
+                        currentPage = nextSession.page;
+                        currentAccountIndex = nextIndex;
+                    } catch (rotateErr) {
+                        console.error(
+                            `[ROTATE] Failed to switch to acc${nextIndex}:`,
+                            rotateErr.message,
+                        );
+                        log(
+                            `[ROTATE] Continuing with current account.`,
+                        );
+                        // Re-setup current account as browser was closed
+                        const fallbackSession = await setupAccountSession(
+                            accounts[currentAccountIndex],
+                            currentAccountIndex,
+                        );
+                        currentBrowser = fallbackSession.browser;
+                        currentPage = fallbackSession.page;
+                    }
+                    log(
                         `[ROTATE] Now using acc${currentAccountIndex}.\n`,
                     );
                 }
@@ -620,7 +670,42 @@ async function extractJijiDetail(detailUrl, browser) {
                     uniqueLinks[i],
                     currentBrowser,
                 );
-                vendors.push(data);
+
+                if (data.phone) {
+                    if (vendors.has(data.phone)) {
+                        log(
+                            `[SCRAPE] Already have vendor ${data.phone}. Appending product...`,
+                        );
+                        const existing = vendors.get(data.phone);
+                        // Append product if not already present and limit products per vendor to 2
+                        if (
+                            existing.products.length < 2 &&
+                            !existing.products.some(
+                                (p) => p.url === data.profile_url,
+                            )
+                        ) {
+                            existing.products.push({
+                                title: data.title,
+                                price: data.price,
+                                url: data.profile_url,
+                            });
+                        }
+                    } else {
+                        vendors.set(data.phone, {
+                            name: data.seller_name,
+                            phone: data.phone,
+                            whatsapp: data.whatsapp,
+                            all_phones: data.all_phones,
+                            products: [
+                                {
+                                    title: data.title,
+                                    price: data.price,
+                                    url: data.profile_url,
+                                },
+                            ],
+                        });
+                    }
+                }
 
                 // ——— RANDOM DELAY (human behavior) ———
                 // Between 1.5s and 4s — varies like a human browsing
@@ -632,6 +717,7 @@ async function extractJijiDetail(detailUrl, browser) {
     }
 
     await currentBrowser.close();
-    fs.writeFileSync("vendors.json", JSON.stringify(vendors, null, 2));
-    process.stdout.write(JSON.stringify(vendors));
+    const finalVendors = Array.from(vendors.values());
+    fs.writeFileSync("vendors.json", JSON.stringify(finalVendors, null, 2));
+    process.stdout.write(JSON.stringify(finalVendors));
 })();
